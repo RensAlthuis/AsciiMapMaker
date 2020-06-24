@@ -5,9 +5,8 @@ pub mod terminal;
 pub use square::Square;
 
 pub trait Drawable<'a> {
-    type Target : IntoIterator<Item = u32> + 'a;
 
-    fn iter(&'a self) -> Box<Self::Target>;
+    fn iter(&'a self) -> Box<dyn Iterator<Item = u32> + 'a>;
     fn width(&self) -> u16;
 }
 

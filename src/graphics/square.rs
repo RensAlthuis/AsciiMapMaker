@@ -28,9 +28,8 @@ impl Square{
 }
 
 impl<'a> Drawable<'a> for Square {
-    type Target = std::vec::IntoIter<u32>;
 
-    fn iter(&'a self) -> Box<Self::Target>
+    fn iter(&'a self) -> Box<dyn Iterator<Item = u32> + 'a >
     {
         let mut acc = Vec::with_capacity(self.width as usize * self.height as usize);
 

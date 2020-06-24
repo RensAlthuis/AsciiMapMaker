@@ -9,6 +9,7 @@ mod menu;
 
 use graphics::{Graphics, Event};
 use graphics::terminal::TermGraphics;
+use menu::Menu;
 
 fn main() {
 
@@ -17,13 +18,16 @@ fn main() {
     m.to_file("test.map");
     let m = std::rc::Rc::new(map::Map::from_file("test.map"));
     let window = map::window::Window::new(&m, 0, 0, 10, 10);
+
     m.set(1, 1, 1);
     m.set(2, 2, 1);
     m.set(1, 2, 1);
     m.set(2, 1, 1);
 
+    let menu = Menu::new();
+
     output.clear()
-          .draw(&window, 0, 0);
+          .draw(&menu, 0, 0);
 
     let square = graphics::square::Square::filled(1, 1, 5, 5);
     output.run(|output, ev| {

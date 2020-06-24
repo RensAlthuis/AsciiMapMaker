@@ -55,9 +55,8 @@ impl Window{
 
 
 impl<'a> crate::graphics::Drawable<'a> for Window{
-    type Target = WindowIterator<'a>;
 
-    fn iter(&'a self) -> Box<Self::Target>{
+    fn iter(&'a self) -> Box<dyn Iterator<Item = u32> + 'a>{
 
         let tiles = self.map.tiles.borrow();
         Box::new(WindowIterator{
