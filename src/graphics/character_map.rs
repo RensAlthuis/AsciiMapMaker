@@ -1,9 +1,10 @@
 
-pub fn map(tile : u32) -> char
+pub fn map(tile : usize) -> char
 {
-    match tile {
-        0 => ' ',
-        1 => '█',
-        _ => ' ',
-    }
+    match tile{
+            0 => ' ',
+            1 => '.',
+            2 => 'X',
+            _ => ' ',
+        }
 }

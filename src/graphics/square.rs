@@ -1,14 +1,15 @@
 use super::Drawable;
+use super::Tile;
 
 pub struct Square{
-    width: u16,
-    height: u16,
-    border : u32,
-    fill : u32,
+    width: usize,
+    height: usize,
+    border : Tile,
+    fill : Tile,
 }
 
 impl Square{
-    pub fn filled(border : u32, fill : u32, width : u16, height : u16) -> Self {
+    pub fn filled(border : Tile, fill : Tile, width : usize, height : usize) -> Self {
         Square{
             width,
             height,
@@ -17,69 +18,66 @@ impl Square{
         }
     }
 
-    pub fn new(border: u32, width : u16, height : u16) -> Self {
+    pub fn new(border: Tile, width : usize, height : usize) -> Self {
         Square{
             width,
             height,
             border,
-            fill : 0,
+            fill : Tile::Empty,
         }
     }
 }
 
 impl<'a> Drawable<'a> for Square {
 
-    fn iter(&'a self) -> Box<dyn Iterator<Item = u32> + 'a >
+    fn iter(&'a self) -> Box<dyn Iterator<Item = (usize, usize, Tile)> + 'a >
     {
-        let mut acc = Vec::with_capacity(self.width as usize * self.height as usize);
+        let mut acc = Vec::with_capacity(self.width * self.height);
 
-        for _ in 0..self.width{
-            acc.push(self.border)
+        for x in 0..self.width{
+            acc.push((x, 0, self.border));
+            acc.push((x, self.height-1, self.border));
         }
 
-        for _ in 0..(self.height - 2) {
-            acc.push(self.border);
-            for _ in 0..(self.width-2) {
-                acc.push(self.fill);
+        for y in 1..(self.height-1) {
+            acc.push((0, y, self.border));
+            acc.push((self.width-1, y, self.border));
+        }
+
+        for x in 1..(self.width - 1) {
+            for y in 1..(self.height - 1) {
+                acc.push((x, y, self.fill));
             }
-            acc.push(self.border);
         }
 
-        for _ in 0..self.width{
-            acc.push(self.border)
-        }
-
-        let iter = acc.into_iter();
-
-        Box::new(iter)
+        Box::new(acc.into_iter())
     }
 
-    fn width(&self) -> u16 {
-        self.width as u16
+    fn width(&self) -> usize {
+        self.width
     }
 
 }
 
 impl IntoIterator for Square{
-    type Item = u32;
+    type Item = (usize, usize, Tile);
     type IntoIter = std::vec::IntoIter<Self::Item>;
     fn into_iter(self) -> Self::IntoIter {
-        let mut acc = Vec::with_capacity(self.width as usize * self.height as usize);
+        let mut acc = Vec::with_capacity(self.width * self.height);
 
-        for _ in 0..self.width{
-            acc.push(self.border)
+        for x in 0..self.width{
+            acc.push((x, 0, self.border));
+            acc.push((x, self.height-1, self.border));
+        }
+        for y in 1..(self.height-1) {
+            acc.push((0, y, self.border));
+            acc.push((self.width-1, y, self.border));
         }
 
-        for _ in 0..(self.height - 2) {
-            acc.push(self.border);
-            for _ in 0..(self.width-2) {
-                acc.push(self.fill);
+        for x in 1..(self.width - 1) {
+            for y in 1..(self.height - 1) {
+                acc.push((x, y, self.fill));
             }
-            acc.push(self.border);
-        }
-
-        for _ in 0..self.width{
-            acc.push(self.border)
         }
 
         acc.into_iter()
