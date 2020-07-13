@@ -1,4 +1,9 @@
-use crate::graphics::{Drawable, Square, Tile, Style};
+use crate::graphics::{Drawable, Square, Style, StyleType};
+use crate::graphics::Token;
+
+pub struct MenuIterator {
+
+}
 
 pub struct Menu {
     options : Vec<(bool, String)>,
@@ -15,45 +20,81 @@ impl Menu {
 
     pub fn up (&mut self) { if self.selection > 0 {self.selection -= 1;}}
     pub fn down(&mut self) { if self.selection < self.options.len()-1 { self.selection += 1}}
+    pub fn toggle(&mut self) {
+        if let Some(entry) = self.options.get_mut(self.selection){
+            entry.0 = !entry.0;
+        }
+    }
 
     pub fn height(&self) -> usize{
         self.options.len() + 4
     }
 }
 
-//TODO: Find a better way to do string styling
 impl<'a> Drawable<'a> for Menu {
 
-    fn iter(&'a self) -> Box<dyn Iterator<Item = (usize, usize, Tile)> + 'a > {
+    fn iter(&'a self) -> Box<dyn Iterator<Item = (usize, usize, Token)> + 'a > {
 
-        let sqr = Square::new(Tile::Character('*'), self.width(), self.height());
+        let sqr = Square::new(Token::Character('*'), self.width(), self.height());
 
         let strings = self.options.iter().enumerate().flat_map(
             move | (i, (b, s)) | {
-                Drawable::iter(s).map(
+                let drawable = if i != self.selection{
+                    Style::new(Box::new(s.as_str()), StyleType::None)
+                }else{
+                    Style::new(Box::new(s.as_str()), StyleType::Underline)
+                };
+
+                let drawable = if *b {
+                    Style::chain(drawable, StyleType::Colour{r:255,g:0,b:0})
+                }else{
+                    drawable
+                };
+
+                let drawable = Box::new(drawable).into_iter().map(
                     move |(x, y, c)| {
                         (x+2, 2+y+ i, c)
                     }
-                )
-            }
-        ).fold(Vec::new(),
-            |mut acc, (x,y,c)|{
-                if x == 2 && y == self.selection+2{
-                    acc.push((0, y, Tile::Style(Style::Underline)));
-                }
+                );
 
-                acc.push((x, y, c));
-
-                if x == self.options[y-2].1.len()+1 && y == self.selection+2 {
-                    acc.push((0, y, Tile::Style(Style::NoUnderline)));
-                }
-
-                acc
+                drawable.into_iter()
             }
         );
 
+        let iter = Drawable::into_iter(Box::new(sqr)).chain(strings);
+        Box::new(iter)
+    }
 
-        let iter = sqr.into_iter().chain(strings);
+    fn into_iter(self : Box<Self>) -> Box<dyn Iterator<Item = (usize, usize, Token)> + 'a > {
+
+        let sqr = Square::new(Token::Character('*'), self.width(), self.height());
+
+        let selection = self.selection;
+        let strings = self.options.into_iter().enumerate().flat_map(
+            move | (i, (b, s)) | {
+                let drawable = if i != selection{
+                    Style::new(Box::new(s), StyleType::None)
+                }else{
+                    Style::new(Box::new(s), StyleType::Underline)
+                };
+
+                let drawable = if b {
+                    Style::chain(drawable, StyleType::Colour{r:255,g:0,b:0})
+                }else{
+                    drawable
+                };
+
+                let drawable = Style::into_iter(Box::new(drawable)).map(
+                    move |(x, y, c)| {
+                        (x+2, 2+y+ i, c)
+                    }
+                );
+
+                Box::new(drawable).into_iter()
+            }
+        );
+
+        let iter = Drawable::into_iter(Box::new(sqr)).chain(strings);
         Box::new(iter)
     }
 

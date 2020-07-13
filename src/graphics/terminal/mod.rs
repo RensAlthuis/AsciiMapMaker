@@ -1,15 +1,18 @@
+mod character_map;
+
 use std::io::{stdin, stdout, Write};
 use termion::cursor::HideCursor;
 use termion::screen::AlternateScreen;
-use termion::event::{Event, Key, MouseEvent};
+use termion::event::{Event, Key, MouseEvent, MouseButton};
 use termion::input::{MouseTerminal, TermRead};
 use termion::raw::{IntoRawMode, RawTerminal};
+use super::{Graphics, Drawable, token::Token, StyleType};
 
-use super::{Graphics, Drawable, Tile, Style};
 pub type Output = MouseTerminal<HideCursor<AlternateScreen<RawTerminal<std::io::Stdout>>>>;
 
 pub struct TermGraphics {
     stdout: Option<Output>,
+    last_button_down : usize,
 }
 
 impl TermGraphics {
@@ -21,7 +24,7 @@ impl TermGraphics {
             .map(|e| HideCursor::from(e))
             .map(|e| MouseTerminal::from(e));
 
-        TermGraphics { stdout }
+        TermGraphics { stdout , last_button_down : 0}
     }
 
     pub fn clear(&mut self) -> &mut Self {
@@ -53,6 +56,28 @@ impl TermGraphics {
         self
     }
 
+    pub fn set_style(&mut self, style : StyleType) -> &mut Self {
+        //TODO implement other types
+        if let Some(output) = &mut self.stdout {
+            match style {
+                StyleType::Underline => {
+                    write!(output, "{}", termion::style::Underline).unwrap();
+                },
+                StyleType::NoUnderline => {
+                    write!(output, "{}", termion::style::NoUnderline).unwrap();
+                },
+                StyleType::Colour{r,g,b} => {
+                    write!(output, "{}", termion::color::Fg(termion::color::Rgb(r,g,b))).unwrap();
+                }
+                StyleType::ResetColour => {
+                    write!(output, "{}", termion::color::Fg(termion::color::White)).unwrap();
+                }
+                _ => ()
+            }
+        }
+        self
+    }
+
     pub fn down(&mut self, n: u16) -> &mut Self {
         if let Some(output) = &mut self.stdout {
             write!(output, "{}", termion::cursor::Down(n)).unwrap();
@@ -80,20 +105,46 @@ impl TermGraphics {
         }
         self
     }
+
+    pub fn draw_token(&mut self, x : isize, y: isize, token : Token) -> &mut Self{
+        match token {
+            Token::Tile(t) => {
+                self.goto(x as u16, y as u16)
+                    .put(character_map::map(t))
+            },
+            Token::Character(c) => {
+                self.goto(x as u16, y as u16)
+                    .put(c)
+            },
+            Token::StyleType(s) => {
+                self.goto(x as u16, y as u16)
+                    .set_style(s)
+            },
+            Token::Style(s, t) => {
+                self.set_style(s)
+                    .draw_token(x, y, *t)
+                    .set_style(s.invert())
+            }
+            Token::Empty => { self.right(1) }
+        }
+    }
 }
 
 impl Graphics for TermGraphics {
-    fn run<F>(&mut self, f: &mut F) where F: FnMut(&mut Self, super::Event) -> bool
+    fn run<F>(&mut self, keymap : &mut crate::KeyMap<F>, context : &mut F, f: fn(&mut Self, &mut crate::KeyMap<F>, super::Event, &mut F) -> bool)
     {
         let input = stdin();
         for c in input.events() {
             let evt = c.unwrap();
             let res = match evt {
-                Event::Key(Key::Char(key)) => f(self, super::Event::Key(key)),
+                Event::Key(Key::Char(key)) => f(self, keymap,  super::Event::Key(key), context),
                 Event::Mouse(me) => match me {
-                    MouseEvent::Press(_b, x, y) => f(self, super::Event::MouseDown(0, x as usize -1, y as usize -1)),
-                    MouseEvent::Hold(x, y) => f(self, super::Event::MouseDrag(x as usize -1, y as usize -1)),
-                    MouseEvent::Release(x, y) => f(self, super::Event::MouseUp(x as usize -1, y as usize -1)),
+                    MouseEvent::Press(b, x, y) => {
+                        self.last_button_down = from(b);
+                        f(self, keymap, super::Event::MouseDown(self.last_button_down, x as usize -1, y as usize -1), context)
+                    },
+                    MouseEvent::Hold(x, y) => f(self, keymap, super::Event::MouseDrag(self.last_button_down, x as usize -1, y as usize -1), context),
+                    MouseEvent::Release(x, y) => f(self, keymap, super::Event::MouseUp(x as usize -1, y as usize -1), context),
                 },
                 _ => true,
             };
@@ -111,7 +162,7 @@ impl Graphics for TermGraphics {
         let size = termion::terminal_size().unwrap();
         let (w, h) = (size.0 as isize, size.1 as isize);
 
-        for (col, row, tile) in d.iter() {
+        for (col, row, token) in d.iter() {
 
             let px = x + col as isize;
             let py = y + row as isize;
@@ -120,30 +171,7 @@ impl Graphics for TermGraphics {
                 continue;
             };
 
-            match tile {
-                Tile::Tile(t) => {
-                    self.goto(px as u16, py as u16)
-                        .put(super::character_map::map(t));
-                },
-                Tile::Character(c) => {
-                    self.goto(px as u16, py as u16)
-                        .put(c);
-                }
-                Tile::Style(s) => {
-                    if let Some(output) = &mut self.stdout {
-                        match s {
-                            Style::Underline => {
-                                write!(output, "{}", termion::style::Underline).unwrap();
-                            },
-                            Style::NoUnderline => {
-                                write!(output, "{}", termion::style::NoUnderline).unwrap();
-                            },
-                            _ => ()
-                        }
-                    }
-                }
-                Tile::Empty => { self.right(1); }
-            };
+            self.draw_token(px, py, token);
         }
 
         self.flush()
@@ -154,4 +182,16 @@ impl Graphics for TermGraphics {
         (w as usize, h as usize)
     }
 
+}
+
+
+//TODO: turn this into an enum.
+fn from(button: MouseButton) -> usize {
+    match button {
+        MouseButton::Left => 0,
+        MouseButton::Right => 1,
+        MouseButton::Middle => 2,
+        MouseButton::WheelUp => 3,
+        MouseButton::WheelDown => 4,
+    }
 }
